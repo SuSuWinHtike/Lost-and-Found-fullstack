@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  body {
+    background-color: #FAF6EF;
+    color: #2D241E;
+    font-family: var(--font-sans);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border: none;
+    text-align: left;
+  }
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F2ECE0;
+}
+::-webkit-scrollbar-thumb {
+  background: #D8C3A5;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #BFA583;
+}
+
+/* Modern soft ambient shadows */
+.pet-card-shadow {
+  box-shadow: 0 12px 35px -8px rgba(130, 80, 30, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+}
+
+.pet-card-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pet-card-hover:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px -10px rgba(160, 90, 30, 0.16), 0 8px 18px -4px rgba(0, 0, 0, 0.05);
+}
+
+.pet-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.search-card-shadow {
+  box-shadow: 0 20px 50px -12px rgba(140, 90, 30, 0.12), 0 8px 24px -4px rgba(0, 0, 0, 0.04);
+}
