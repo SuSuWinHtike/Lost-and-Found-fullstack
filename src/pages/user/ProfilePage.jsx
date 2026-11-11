@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import dashboardService from '../../services/dashboardService';
+import authService from '../../services/authService';
 import {
   User,
   Mail,
@@ -9,47 +11,90 @@ import {
   Lock,
   Save,
   CheckCircle2,
-  Shield
+  Shield,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 const ProfilePage = () => {
-  const { currentUser, updateUser, addToast } = useApp();
+  const { currentUser, setCurrentUser, updateUser, addToast } = useApp();
 
   const [name, setName] = useState(currentUser?.name || 'Kyaw Zin Htet');
   const [email, setEmail] = useState(currentUser?.email || 'kyawzin@gmail.com');
   const [phone, setPhone] = useState(currentUser?.phone || '+95 9 798 123 456');
-  const [location, setLocation] = useState(currentUser?.location || 'Kamayut, Yangon');
-  const [bio, setBio] = useState(currentUser?.bio || 'Pet lover and community volunteer.');
+  const [township, setTownship] = useState(currentUser?.township || 'Hlaing Township');
+  const [stateRegion, setStateRegion] = useState(currentUser?.state_region || 'Yangon Region');
   const [avatar, setAvatar] = useState(
     currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'
   );
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Password fields
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      setName(currentUser.name || '');
+      setEmail(currentUser.email || '');
+      setPhone(currentUser.phone || '');
+      setTownship(currentUser.township || 'Hlaing Township');
+      setStateRegion(currentUser.state_region || 'Yangon Region');
+      if (currentUser.avatar) {
+        setAvatar(currentUser.avatar.startsWith('/storage') ? ('http://127.0.0.1:8000' + currentUser.avatar) : currentUser.avatar);
+      }
+    }
+  }, [currentUser]);
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      setAvatarFile(file);
       const url = URL.createObjectURL(file);
       setAvatar(url);
     }
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    updateUser(currentUser?.id || 'u1', {
-      name,
-      email,
-      phone,
-      location,
-      bio,
-      avatar
-    });
+    setIsSaving(true);
+    try {
+      if (authService.isAuthenticated()) {
+        const res = await dashboardService.updateProfile({
+          name,
+          email,
+          phone,
+          state_region: stateRegion,
+          township,
+        });
+
+        if (avatarFile) {
+          const form = new FormData();
+          form.append('avatar', avatarFile);
+          const avRes = await dashboardService.updateAvatar(form);
+          if (avRes.user) setCurrentUser(avRes.user);
+        } else if (res.user) {
+          setCurrentUser(res.user);
+        }
+        addToast('Profile updated successfully!', 'success');
+      } else {
+        updateUser(currentUser?.id || 'u1', { name, email, phone, township, state_region: stateRegion });
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to update profile.';
+      addToast(msg, 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleChangePassword = (e) => {
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     if (!currentPassword || !newPassword) {
       alert('Please fill out all password fields.');
@@ -59,10 +104,32 @@ const ProfilePage = () => {
       alert('New passwords do not match.');
       return;
     }
-    addToast('Password changed successfully!', 'success');
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+    if (newPassword.length < 8) {
+      alert('New password must be at least 8 characters long.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      if (authService.isAuthenticated()) {
+        await dashboardService.changePassword({
+          current_password: currentPassword,
+          new_password: newPassword,
+          new_password_confirmation: confirmPassword,
+        });
+        addToast('Password changed successfully!', 'success');
+      } else {
+        addToast('Password updated in session.', 'success');
+      }
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to change password. Please check your current password.';
+      addToast(msg, 'error');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   return (
@@ -219,13 +286,24 @@ const ProfilePage = () => {
               <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1">
                 Current Password
               </label>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500"
-              />
+              <div className="relative">
+                <input
+                  type={showCurrentPass ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPass(!showCurrentPass)}
+                  className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-700 cursor-pointer transition p-0.5"
+                  tabIndex={-1}
+                  aria-label={showCurrentPass ? 'Hide password' : 'Show password'}
+                >
+                  {showCurrentPass ? <EyeOff className="w-4 h-4 text-amber-600" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -233,26 +311,48 @@ const ProfilePage = () => {
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1">
                   New Password
                 </label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Min 6 characters"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-700 cursor-pointer transition p-0.5"
+                    tabIndex={-1}
+                    aria-label={showNewPass ? 'Hide password' : 'Show password'}
+                  >
+                    {showNewPass ? <EyeOff className="w-4 h-4 text-amber-600" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1">
                   Confirm New Password
                 </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat new password"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPass ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repeat new password"
+                    className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-700 cursor-pointer transition p-0.5"
+                    tabIndex={-1}
+                    aria-label={showConfirmPass ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPass ? <EyeOff className="w-4 h-4 text-amber-600" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             </div>
 

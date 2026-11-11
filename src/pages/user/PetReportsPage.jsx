@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import PetCard from '../../components/user/PetCard';
@@ -19,8 +19,13 @@ import {
 } from 'lucide-react';
 
 const PetReportsPage = () => {
-  const { pets, setSelectedPetForModal, petTypes, breeds, colours, locations, favorites } = useApp();
+  const { pets, refreshPets, setSelectedPetForModal, petTypes, breeds, colours, locations, favorites, loading } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Load latest real data from MySQL on mount
+  useEffect(() => {
+    refreshPets();
+  }, [refreshPets]);
 
   // Three Main Tabs: 'all' | 'lost' | 'found'
   const initialTab = searchParams.get('status') || 'all';
@@ -44,23 +49,25 @@ const PetReportsPage = () => {
 
   // Filter townships based on selected region & city
   const availableCities = useMemo(() => {
-    if (!selectedRegion) return [];
-    const regionObj = locations.find(l => l.region === selectedRegion);
-    return regionObj ? regionObj.cities : [];
+    if (!selectedRegion || !Array.isArray(locations)) return [];
+    const regionObj = locations.find(l => l && l.region === selectedRegion);
+    return regionObj ? (regionObj.cities || []) : [];
   }, [selectedRegion, locations]);
 
   const availableTownships = useMemo(() => {
+    if (!Array.isArray(availableCities)) return [];
     if (!selectedCity) {
-      return availableCities.flatMap(c => c.townships);
+      return availableCities.flatMap(c => c?.townships || []);
     }
-    const cityObj = availableCities.find(c => c.cityName === selectedCity);
-    return cityObj ? cityObj.townships : [];
+    const cityObj = availableCities.find(c => c && c.cityName === selectedCity);
+    return cityObj ? (cityObj.townships || []) : [];
   }, [selectedCity, availableCities]);
 
   // Breeds filtered by selected pet type
   const availableBreeds = useMemo(() => {
+    if (!Array.isArray(breeds)) return [];
     if (!selectedPetType) return breeds;
-    return breeds.filter(b => b.petType.toLowerCase() === selectedPetType.toLowerCase());
+    return breeds.filter(b => b && b.petType?.toLowerCase() === selectedPetType.toLowerCase());
   }, [selectedPetType, breeds]);
 
   const handleClearFilters = () => {
@@ -87,16 +94,18 @@ const PetReportsPage = () => {
 
   // Master Filter Logic incorporating Tab, Quick Chips, and Advanced Selectors
   const filteredPets = useMemo(() => {
+    if (!Array.isArray(pets)) return [];
     return pets.filter(pet => {
+      if (!pet) return false;
       // 1. Tab condition
       if (activeTab === 'lost' && pet.reportType !== 'lost') return false;
       if (activeTab === 'found' && pet.reportType !== 'found') return false;
 
       // 2. Quick Filter Chips condition
-      if (activeQuickChip === 'dogs' && pet.petType !== 'Dog') return false;
-      if (activeQuickChip === 'cats' && pet.petType !== 'Cat') return false;
-      if (activeQuickChip === 'yangon' && !pet.region.toLowerCase().includes('yangon')) return false;
-      if (activeQuickChip === 'mandalay' && !pet.region.toLowerCase().includes('mandalay')) return false;
+      if (activeQuickChip === 'dogs' && pet.petType?.toLowerCase() !== 'dog') return false;
+      if (activeQuickChip === 'cats' && pet.petType?.toLowerCase() !== 'cat') return false;
+      if (activeQuickChip === 'yangon' && !pet.region?.toLowerCase().includes('yangon')) return false;
+      if (activeQuickChip === 'mandalay' && !pet.region?.toLowerCase().includes('mandalay')) return false;
       if (activeQuickChip === 'reward' && !pet.reward) return false;
       if (activeQuickChip === 'favorites' && (!favorites || !favorites.includes(pet.id))) return false;
 
@@ -105,8 +114,8 @@ const PetReportsPage = () => {
         const query = keyword.toLowerCase();
         const matchName = pet.petName?.toLowerCase().includes(query);
         const matchBreed = pet.breed?.toLowerCase().includes(query);
-        const matchColour = pet.colour?.toLowerCase().includes(query);
-        const matchLocation = `${pet.township} ${pet.city} ${pet.region} ${pet.exactLocation}`.toLowerCase().includes(query);
+        const matchColour = (pet.colour || pet.color || '').toLowerCase().includes(query);
+        const matchLocation = `${pet.township || ''} ${pet.city || ''} ${pet.region || ''} ${pet.exactLocation || ''}`.toLowerCase().includes(query);
         const matchDesc = pet.description?.toLowerCase().includes(query);
 
         if (!matchName && !matchBreed && !matchColour && !matchLocation && !matchDesc) {
@@ -115,33 +124,45 @@ const PetReportsPage = () => {
       }
 
       // 4. Pet Type (Cat / Dog)
-      if (selectedPetType && pet.petType.toLowerCase() !== selectedPetType.toLowerCase()) {
+      if (selectedPetType && pet.petType?.toLowerCase() !== selectedPetType.toLowerCase()) {
         return false;
       }
 
       // 5. Breed
-      if (selectedBreed && pet.breed.toLowerCase() !== selectedBreed.toLowerCase()) {
-        return false;
+      if (selectedBreed) {
+        const cleanSelected = selectedBreed.toLowerCase().trim();
+        const petBreed = (pet.breed || '').toLowerCase().trim();
+        if (cleanSelected !== petBreed && !petBreed.includes(cleanSelected) && !cleanSelected.includes(petBreed)) {
+          return false;
+        }
       }
 
       // 6. Colour
-      if (selectedColour && !pet.colour.toLowerCase().includes(selectedColour.toLowerCase())) {
-        return false;
+      if (selectedColour) {
+        const cleanSelected = selectedColour.toLowerCase().trim();
+        const petColor = `${pet.colour || ''} ${pet.color || ''} ${pet.secondaryColor || ''}`.toLowerCase().trim();
+        const selectedKeywords = cleanSelected.split(/[\/\s,&]+/).filter(w => w.length > 2);
+        const matchesKeyword = selectedKeywords.some(kw => petColor.includes(kw));
+        if (!petColor.includes(cleanSelected) && !matchesKeyword) {
+          return false;
+        }
       }
 
       // 7. Region
-      if (selectedRegion && pet.region.toLowerCase() !== selectedRegion.toLowerCase()) {
-        return false;
+      if (selectedRegion) {
+        const cleanSelected = selectedRegion.toLowerCase().replace(' region', '').replace(' state', '');
+        if (!pet.region?.toLowerCase().includes(cleanSelected)) return false;
       }
 
       // 8. City
-      if (selectedCity && pet.city.toLowerCase() !== selectedCity.toLowerCase()) {
+      if (selectedCity && !pet.city?.toLowerCase().includes(selectedCity.toLowerCase())) {
         return false;
       }
 
       // 9. Township
-      if (selectedTownship && pet.township.toLowerCase() !== selectedTownship.toLowerCase()) {
-        return false;
+      if (selectedTownship) {
+        const cleanTownship = selectedTownship.toLowerCase().replace(' township', '');
+        if (!pet.township?.toLowerCase().includes(cleanTownship)) return false;
       }
 
       // 10. Date
@@ -179,9 +200,9 @@ const PetReportsPage = () => {
   ]);
 
   // Counts for tabs
-  const countAll = pets.length;
-  const countLost = pets.filter(p => p.reportType === 'lost').length;
-  const countFound = pets.filter(p => p.reportType === 'found').length;
+  const countAll = Array.isArray(pets) ? pets.filter(Boolean).length : 0;
+  const countLost = Array.isArray(pets) ? pets.filter(p => p && p.reportType === 'lost').length : 0;
+  const countFound = Array.isArray(pets) ? pets.filter(p => p && p.reportType === 'found').length : 0;
 
   return (
     <div className="space-y-8 pb-16">

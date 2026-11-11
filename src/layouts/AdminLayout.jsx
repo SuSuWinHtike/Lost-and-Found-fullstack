@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
+import authService from '../services/authService';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import AdminTopbar from '../components/admin/AdminTopbar';
 import PetDetailModal from '../components/user/PetDetailModal';
@@ -8,6 +9,11 @@ import Toast from '../components/common/Toast';
 const AdminLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const user = authService.getCurrentUser();
+  if (!authService.isAuthenticated() || user?.role !== 'admin') {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] text-stone-900 flex flex-col font-sans">

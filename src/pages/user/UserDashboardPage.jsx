@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
+import { useApp, formatPetForFrontend } from '../../context/AppContext';
+import dashboardService from '../../services/dashboardService';
 import PetCard from '../../components/user/PetCard';
 import Badge from '../../components/common/Badge';
 import {
@@ -23,20 +24,38 @@ const UserDashboardPage = () => {
   const { pets, notifications, conversations, setSelectedPetForModal, currentUser } = useApp();
   const navigate = useNavigate();
 
-  // Metrics
-  const totalLost = pets.filter(p => p.reportType === 'lost').length;
-  const totalFound = pets.filter(p => p.reportType === 'found').length;
-  const totalReunited = pets.filter(p => p.status === 'Reunited').length;
-  const possibleMatchesCount = 3; // Milo match, Simba match, Rocky match
+  const [dbStats, setDbStats] = useState(null);
+
+  useEffect(() => {
+    dashboardService.getDashboardStats()
+      .then(stats => setDbStats(stats))
+      .catch(() => {});
+  }, []);
+
+  // Metrics from real DB if loaded, fallback to state
+  const totalLost = dbStats ? dbStats.active_lost_reports : pets.filter(p => p.reportType === 'lost').length;
+  const totalFound = dbStats ? dbStats.active_found_reports : pets.filter(p => p.reportType === 'found').length;
+  const totalReunited = dbStats ? dbStats.reunited_pets : pets.filter(p => p.status === 'Reunited').length;
+  const possibleMatchesCount = dbStats ? dbStats.potential_matches : 3;
 
   // Recent reports
-  const recentReports = pets.slice(0, 3);
+  const recentReports = (dbStats?.recent_reports && dbStats.recent_reports.length > 0)
+    ? dbStats.recent_reports.map(formatPetForFrontend)
+    : pets.slice(0, 3);
 
   // Recent messages
   const recentConversations = conversations.slice(0, 3);
 
   // Recent notifications
-  const recentNotifs = notifications.slice(0, 3);
+  const recentNotifs = (dbStats?.recent_notifications && dbStats.recent_notifications.length > 0)
+    ? dbStats.recent_notifications.map(n => ({
+        id: n.id,
+        title: n.title,
+        message: n.message,
+        timestamp: new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        link: n.action_url || '/user/notifications',
+      }))
+    : notifications.slice(0, 3);
 
   return (
     <div className="space-y-8">

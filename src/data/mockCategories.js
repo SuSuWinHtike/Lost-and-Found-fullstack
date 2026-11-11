@@ -25,7 +25,7 @@ export const initialBreeds = [
 ];
 
 export const initialColours = [
-  { id: 'c1', name: 'Golden / Yellow', hex: '#E5A93C' },
+  { id: 'c1', name: 'Golden / Cream', hex: '#E5A93C' },
   { id: 'c2', name: 'White', hex: '#FFFFFF' },
   { id: 'c3', name: 'Black', hex: '#1C1917' },
   { id: 'c4', name: 'Brown / Chocolate', hex: '#78350F' },

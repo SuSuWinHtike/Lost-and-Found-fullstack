@@ -28,8 +28,9 @@ const CreateReportPage = () => {
   const [petName, setPetName] = useState('');
   const [petType, setPetType] = useState('Dog');
   const [breed, setBreed] = useState('Golden Retriever');
-  const [colour, setColour] = useState('Golden / Yellow');
-  const [age, setAge] = useState('2 Years');
+  const [colour, setColour] = useState('Golden / Cream');
+  const [secondaryColour, setSecondaryColour] = useState('');
+  const [age, setAge] = useState('2.5 Years');
   const [gender, setGender] = useState('Male');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState('14:30');
@@ -37,25 +38,27 @@ const CreateReportPage = () => {
   // Location
   const [region, setRegion] = useState('Yangon Region');
   const [city, setCity] = useState('Yangon');
-  const [township, setTownship] = useState('Kamayut');
+  const [township, setTownship] = useState('Hlaing Township');
   const [exactLocation, setExactLocation] = useState('');
 
   // Description & Details
   const [description, setDescription] = useState('');
   const [appearance, setAppearance] = useState('');
+  const [holdingLocation, setHoldingLocation] = useState('');
   const [collar, setCollar] = useState('');
   const [microchipped, setMicrochipped] = useState(false);
+  const [microchipId, setMicrochipId] = useState('');
   const [reward, setReward] = useState('');
 
   // Contact Info
   const [userName, setUserName] = useState(currentUser?.name || 'Kyaw Zin Htet');
-  const [userPhone, setUserPhone] = useState(currentUser?.phone || '+95 9 798 123 456');
+  const [userPhone, setUserPhone] = useState(currentUser?.phone || '09-450-123-789');
   const [userEmail, setUserEmail] = useState(currentUser?.email || 'kyawzin@gmail.com');
 
   // Multiple Image Upload state
-  const [images, setImages] = useState([
-    'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=800&q=80'
-  ]);
+  const [images, setImages] = useState([]);
+  const [rawFiles, setRawFiles] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Derived location dropdowns
   const availableCities = useMemo(() => {
@@ -76,6 +79,7 @@ const CreateReportPage = () => {
   const handleImageUpload = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
+      setRawFiles(prev => [...prev, ...files].slice(0, 4));
       const newUrls = files.map(file => URL.createObjectURL(file));
       setImages(prev => [...prev, ...newUrls].slice(0, 4));
     }
@@ -83,9 +87,10 @@ const CreateReportPage = () => {
 
   const removeImage = (index) => {
     setImages(prev => prev.filter((_, i) => i !== index));
+    setRawFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!description.trim() || !exactLocation.trim()) {
@@ -93,37 +98,57 @@ const CreateReportPage = () => {
       return;
     }
 
-    const reportData = {
-      reportType,
-      petName: reportType === 'lost' ? (petName || 'Missing Pet') : (petName || `Found ${breed}`),
-      petType,
-      breed,
-      colour,
-      age,
-      gender: reportType === 'lost' ? gender : (gender || 'Unknown'),
-      date,
-      time,
-      region,
-      city,
-      township,
-      exactLocation,
-      description,
-      appearance,
-      collar: collar || (reportType === 'found' ? 'None noticed' : 'None'),
-      microchipped,
-      reward: reportType === 'lost' && reward ? `${reward} MMK` : null,
-      images: images.length > 0 ? images : [
-        petType === 'Dog'
-          ? 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80'
-          : 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=800&q=80'
-      ],
-      userName,
-      userPhone,
-      userEmail
-    };
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('type', reportType);
+      formData.append('pet_name', petName.trim() || (reportType === 'found' ? `Found ${petType}` : 'Missing Pet'));
+      formData.append('pet_type', petType);
+      formData.append('category_id', petType.toLowerCase() === 'cat' ? 2 : 1);
 
-    addPet(reportData);
-    navigate('/user/pet-reports');
+      const foundBreed = breeds.find(b => b.name === breed);
+      if (foundBreed?.id) formData.append('breed_id', foundBreed.id);
+      formData.append('breed', breed);
+
+      const foundColor = colours.find(c => c.name === colour);
+      if (foundColor?.id) formData.append('color_id', foundColor.id);
+      formData.append('colour', colour);
+      formData.append('color', colour);
+      if (secondaryColour.trim()) formData.append('secondary_color', secondaryColour.trim());
+
+      formData.append('gender', gender.toLowerCase());
+      formData.append('age', age.trim() || 'Unknown');
+      formData.append('event_date', date);
+      formData.append('event_time', time);
+
+      const foundRegion = locations.find(l => l.region === region || l.name === region);
+      if (foundRegion?.id) formData.append('state_region_id', foundRegion.id);
+      formData.append('state_region', region);
+      formData.append('region', region);
+      formData.append('township', township);
+      formData.append('last_seen_or_found_location', exactLocation.trim());
+      formData.append('description', description.trim());
+
+      if (appearance.trim()) formData.append('physical_condition', appearance.trim());
+      if (holdingLocation.trim() && reportType === 'found') formData.append('safe_holding_location', holdingLocation.trim());
+      if (collar.trim()) formData.append('collar_description', collar.trim());
+      if (microchipped && microchipId.trim()) formData.append('microchip_id', microchipId.trim());
+      if (reward.trim() && reportType === 'lost') formData.append('reward_amount', `${reward.trim()} MMK`);
+
+      formData.append('contact_name', userName.trim());
+      formData.append('contact_phone', userPhone.trim());
+
+      rawFiles.forEach((file) => {
+        formData.append('images[]', file);
+      });
+
+      await addPet(formData);
+      navigate('/user/pet-reports');
+    } catch (err) {
+      console.error('Failed to submit pet report:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -146,12 +171,7 @@ const CreateReportPage = () => {
       <div className="bg-stone-200/80 p-1.5 rounded-2xl flex max-w-md shadow-inner border border-stone-200">
         <button
           type="button"
-          onClick={() => {
-            setReportType('lost');
-            if (images.length === 0) {
-              setImages(['https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=800&q=80']);
-            }
-          }}
+          onClick={() => setReportType('lost')}
           className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 ${
             reportType === 'lost'
               ? 'bg-rose-500 text-white shadow-md'
@@ -164,12 +184,7 @@ const CreateReportPage = () => {
 
         <button
           type="button"
-          onClick={() => {
-            setReportType('found');
-            if (images.length === 0) {
-              setImages(['https://images.unsplash.com/photo-1587300003388-59208cc962cb?auto=format&fit=crop&w=800&q=80']);
-            }
-          }}
+          onClick={() => setReportType('found')}
           className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 ${
             reportType === 'found'
               ? 'bg-emerald-600 text-white shadow-md'
@@ -272,6 +287,20 @@ const CreateReportPage = () => {
                   <option key={c.id} value={c.name}>{c.name}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Secondary Colour */}
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                Secondary Colour / Markings
+              </label>
+              <input
+                type="text"
+                value={secondaryColour}
+                onChange={(e) => setSecondaryColour(e.target.value)}
+                placeholder="e.g. White chest, Brown paws"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
             </div>
 
             {/* Age / Estimated Age */}
@@ -478,6 +507,23 @@ const CreateReportPage = () => {
               />
             </div>
 
+            {/* Safe Holding / Foster Location (Found Pet) */}
+            {reportType === 'found' && (
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Safe Holding / Foster Location *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={holdingLocation}
+                  onChange={(e) => setHoldingLocation(e.target.value)}
+                  placeholder="e.g. Fostered safely at home in Kamayut or Local Vet Clinic"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+              </div>
+            )}
+
             {/* Collar & Microchip */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
               <div>
@@ -508,17 +554,28 @@ const CreateReportPage = () => {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 pt-6">
-                <input
-                  type="checkbox"
-                  id="microchip"
-                  checked={microchipped}
-                  onChange={(e) => setMicrochipped(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-stone-300"
-                />
-                <label htmlFor="microchip" className="text-xs font-semibold text-stone-700 cursor-pointer">
-                  Pet is microchipped
-                </label>
+              <div>
+                <div className="flex items-center gap-2 pt-2 mb-1.5">
+                  <input
+                    type="checkbox"
+                    id="microchip"
+                    checked={microchipped}
+                    onChange={(e) => setMicrochipped(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-stone-300 cursor-pointer"
+                  />
+                  <label htmlFor="microchip" className="text-xs font-semibold text-stone-700 cursor-pointer">
+                    Pet is microchipped
+                  </label>
+                </div>
+                {microchipped && (
+                  <input
+                    type="text"
+                    value={microchipId}
+                    onChange={(e) => setMicrochipId(e.target.value)}
+                    placeholder="Microchip ID (e.g. MC-984210)"
+                    className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs font-medium focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                )}
               </div>
             </div>
           </div>

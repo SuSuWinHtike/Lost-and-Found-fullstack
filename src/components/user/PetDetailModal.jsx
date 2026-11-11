@@ -1,24 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import Badge from '../common/Badge';
 import {
   X, MapPin, Calendar, Clock, Phone, Mail, User, ShieldCheck,
-  MessageCircle, Eye, Share2, Sparkles, AlertCircle, Heart, Tag
+  MessageCircle, Eye, Share2, Sparkles, AlertCircle, Heart, Tag,
+  Camera, CheckCircle2
 } from 'lucide-react';
 
 const PetDetailModal = () => {
-  const { selectedPetForModal, setSelectedPetForModal, setSelectedSightingPet, pets, addToast } = useApp();
+  const {
+    selectedPetForModal,
+    setSelectedPetForModal,
+    setSelectedSightingPet,
+    pets = [],
+    sightings = [],
+    currentUser,
+    addToast
+  } = useApp();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const navigate = useNavigate();
 
+  const pet = selectedPetForModal;
+
+  const petSightings = useMemo(() => {
+    if (!pet || !Array.isArray(sightings)) return [];
+    const petId = String(pet.id);
+    const rawId = String(pet.rawId || '');
+    return sightings.filter(s =>
+      s && (
+        String(s.petId) === petId ||
+        String(s.pet_report_id) === petId ||
+        (rawId && (String(s.petId) === rawId || String(s.pet_report_id) === rawId))
+      )
+    );
+  }, [pet, sightings]);
+
+  const matches = useMemo(() => {
+    if (!pet || !Array.isArray(pets)) return [];
+    return pets.filter(p =>
+      p &&
+      p.id !== pet.id &&
+      p.petType === pet.petType &&
+      p.reportType !== pet.reportType
+    ).slice(0, 2);
+  }, [pet, pets]);
+
+  // Conditional early return ONLY after all hooks have been invoked
   if (!selectedPetForModal) return null;
 
-  const pet = selectedPetForModal;
   const isLost = pet.reportType === 'lost';
-  const images = pet.images && pet.images.length > 0
+  const images = (Array.isArray(pet.images) && pet.images.length > 0)
     ? pet.images
     : ['https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80'];
+
+  const isOwner = currentUser && (
+    currentUser.id === pet.owner?.id ||
+    currentUser.id === pet.userId ||
+    (pet.owner && String(pet.owner.id) === String(currentUser.id)) ||
+    petSightings.some(s => s && s.petOwnerId === currentUser.id)
+  );
 
   const handleClose = () => {
     setSelectedPetForModal(null);
@@ -27,7 +68,12 @@ const PetDetailModal = () => {
 
   const handleOpenChat = () => {
     handleClose();
-    navigate('/user/messages');
+    const ownerId = pet.owner?.id || pet.userId;
+    if (ownerId && ownerId !== currentUser?.id) {
+      navigate(`/user/messages?ownerId=${ownerId}&petId=${pet.id}`);
+    } else {
+      navigate('/user/messages');
+    }
   };
 
   const handleOpenSighting = () => {
@@ -39,13 +85,6 @@ const PetDetailModal = () => {
     navigator.clipboard?.writeText(window.location.origin + `/user/pet-reports?id=${pet.id}`);
     addToast('Report link copied to clipboard! Share it with the community.', 'info');
   };
-
-  // Find possible matches in the system (different reportType, same petType, same or similar breed)
-  const matches = pets.filter(p =>
-    p.id !== pet.id &&
-    p.petType === pet.petType &&
-    p.reportType !== pet.reportType
-  ).slice(0, 2);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-sm overflow-y-auto">
@@ -221,14 +260,14 @@ const PetDetailModal = () => {
             <div className="pt-6 mt-6 border-t border-amber-100 grid grid-cols-2 gap-3">
               <button
                 onClick={handleOpenChat}
-                className="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 transition"
+                className="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 transition cursor-pointer"
               >
                 <MessageCircle className="w-4 h-4" />
                 Contact / Send Message
               </button>
               <button
                 onClick={handleOpenSighting}
-                className="py-3 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs flex items-center justify-center gap-2 transition"
+                className="py-3 px-4 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 <AlertCircle className="w-4 h-4 text-amber-600" />
                 Submit Sighting
@@ -237,6 +276,99 @@ const PetDetailModal = () => {
 
           </div>
 
+        </div>
+
+        {/* Real Community Sightings for this Pet */}
+        <div className="p-6 md:p-8 bg-stone-50 border-t border-amber-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5 text-amber-600" />
+                <h3 className="font-extrabold text-stone-900 text-sm md:text-base">
+                  Community Street Sightings ({petSightings.length})
+                </h3>
+                {isOwner && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-500 text-white">
+                    Owner Clues
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Real-time reports and photos submitted by local citizens who spotted this pet
+              </p>
+            </div>
+
+            <button
+              onClick={handleOpenSighting}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm self-start sm:self-auto cursor-pointer"
+            >
+              <AlertCircle className="w-4 h-4" />
+              I Spotted This Pet
+            </button>
+          </div>
+
+          {isOwner && (
+            <div className="mb-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs text-amber-900">
+              <ShieldCheck className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>Owner Notice:</strong> You are the owner of this pet report. Use the verified clues and phone numbers below to contact witnesses and narrow your search.
+              </span>
+            </div>
+          )}
+
+          {petSightings.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {petSightings.map(s => (
+                <div
+                  key={s.id}
+                  className="bg-white p-4 rounded-2xl border border-stone-200/90 shadow-sm space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs font-bold text-stone-800">
+                        {s.township ? `${s.township}, ` : ''}{s.location}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-stone-400 font-medium">
+                      {s.sightingDate} {s.sightingTime}
+                    </span>
+                  </div>
+
+                  {s.photo && (
+                    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shadow-inner">
+                      <img
+                        src={s.photo}
+                        alt="Sighting evidence"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+
+                  <p className="text-xs text-stone-600 italic bg-stone-50 p-3 rounded-xl border border-stone-100">
+                    "{s.notes}"
+                  </p>
+
+                  <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
+                    <span className="text-stone-500 text-[11px]">
+                      Witness: <strong className="text-stone-800">{s.submitterName}</strong>
+                    </span>
+                    <a
+                      href={`tel:${s.submitterPhone}`}
+                      className="font-bold text-amber-700 hover:underline flex items-center gap-1"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      {s.submitterPhone}
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-6 text-center bg-white rounded-2xl border border-dashed border-stone-200 text-xs text-stone-500">
+              No street sightings reported yet for this pet. Neighbors can submit sighting photos above.
+            </div>
+          )}
         </div>
 
         {/* Possible Matches Section within Modal */}
@@ -265,8 +397,8 @@ const PetDetailModal = () => {
                   className="bg-white p-3 rounded-2xl border border-amber-200 flex items-center gap-3 cursor-pointer hover:shadow-md transition"
                 >
                   <img
-                    src={match.images[0]}
-                    alt={match.petName}
+                    src={match.images?.[0] || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=400&q=80'}
+                    alt={match.petName || 'Matched Pet'}
                     className="w-16 h-16 rounded-xl object-cover"
                   />
                   <div className="flex-1 min-w-0">

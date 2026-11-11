@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 const Navbar = () => {
-  const { currentUser, currentRole, notifications, conversations, markNotificationRead, markAllNotificationsRead, switchRole } = useApp();
+  const { currentUser, currentRole, notifications, conversations, markNotificationRead, markAllNotificationsRead, switchRole, logout } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -52,9 +52,9 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setProfileDropdownOpen(false);
-    switchRole('guest');
+    if (logout) await logout();
     navigate('/login');
   };
 

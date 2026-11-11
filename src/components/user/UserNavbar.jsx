@@ -23,7 +23,15 @@ import {
 } from 'lucide-react';
 
 const UserNavbar = () => {
-  const { currentUser, notifications, conversations, markNotificationRead, markAllNotificationsRead, switchRole } = useApp();
+  const {
+    currentUser,
+    notifications = [],
+    conversations = [],
+    markNotificationRead,
+    markAllNotificationsRead,
+    logout,
+    switchRole
+  } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -33,8 +41,8 @@ const UserNavbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const unreadNotifs = notifications.filter(n => !n.read).length;
-  const unreadMessages = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+  const unreadNotifs = Array.isArray(notifications) ? notifications.filter(n => !n.read).length : 0;
+  const unreadMessages = Array.isArray(conversations) ? conversations.reduce((acc, c) => acc + (c?.unreadCount || 0), 0) : 0;
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -59,9 +67,9 @@ const UserNavbar = () => {
     { name: 'Messages', path: '/user/messages', icon: MessageSquare, badge: unreadMessages },
   ];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setProfileDropdownOpen(false);
-    switchRole('guest');
+    if (logout) await logout();
     navigate('/login');
   };
 
