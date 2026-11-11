@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import messageService from '../../services/messageService';
 import Badge from '../common/Badge';
 import {
   X, MapPin, Calendar, Clock, Phone, Mail, User, ShieldCheck,
@@ -25,7 +26,7 @@ const PetDetailModal = () => {
 
   const petSightings = useMemo(() => {
     if (!pet || !Array.isArray(sightings)) return [];
-    const petId = String(pet.id);
+    const petId = String(pet.id || '');
     const rawId = String(pet.rawId || '');
     return sightings.filter(s =>
       s && (
@@ -41,12 +42,12 @@ const PetDetailModal = () => {
     return pets.filter(p =>
       p &&
       p.id !== pet.id &&
-      p.petType === pet.petType &&
+      (p.petType || '').toLowerCase() === (pet.petType || '').toLowerCase() &&
       p.reportType !== pet.reportType
     ).slice(0, 2);
   }, [pet, pets]);
 
-  // Conditional early return ONLY after all hooks have been invoked
+  // Conditional early return ONLY after all top-level hooks have executed
   if (!selectedPetForModal) return null;
 
   const isLost = pet.reportType === 'lost';
@@ -66,11 +67,21 @@ const PetDetailModal = () => {
     setActiveImageIndex(0);
   };
 
-  const handleOpenChat = () => {
+  const handleOpenChat = async () => {
     handleClose();
     const ownerId = pet.owner?.id || pet.userId;
+    const petReportId = pet.rawId || pet.id;
     if (ownerId && ownerId !== currentUser?.id) {
-      navigate(`/user/messages?ownerId=${ownerId}&petId=${pet.id}`);
+      try {
+        const res = await messageService.startConversation(Number(ownerId), Number(petReportId));
+        if (res && res.conversation_id) {
+          navigate(`/user/messages?convId=${res.conversation_id}`);
+          return;
+        }
+      } catch {
+        // Fallback to query param
+      }
+      navigate(`/user/messages?ownerId=${ownerId}&petId=${petReportId}`);
     } else {
       navigate('/user/messages');
     }
@@ -78,7 +89,6 @@ const PetDetailModal = () => {
 
   const handleOpenSighting = () => {
     setSelectedSightingPet(pet);
-    // keep or close pet detail modal
   };
 
   const handleShare = () => {
@@ -93,7 +103,7 @@ const PetDetailModal = () => {
         {/* Close Button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/90 text-stone-600 hover:text-stone-950 hover:bg-white shadow-md flex items-center justify-center transition"
+          className="absolute top-4 right-4 z-20 w-10 h-10 rounded-full bg-white/90 text-stone-600 hover:text-stone-950 hover:bg-white shadow-md flex items-center justify-center transition cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -127,7 +137,7 @@ const PetDetailModal = () => {
                     <button
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 transition ${
+                      className={`relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 transition cursor-pointer ${
                         activeImageIndex === idx ? 'border-amber-500 scale-105' : 'border-transparent opacity-70 hover:opacity-100'
                       }`}
                     >
@@ -142,61 +152,61 @@ const PetDetailModal = () => {
             <div className="pt-4 mt-4 border-t border-stone-200 flex items-center justify-between">
               <button
                 onClick={handleShare}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-amber-600 transition"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-amber-600 transition cursor-pointer"
               >
                 <Share2 className="w-4 h-4" />
                 Share Report
               </button>
               <span className="text-[11px] text-stone-400">
-                Report ID: #{pet.id}
+                Report #{pet.id} • Myanmar Pet Network
               </span>
             </div>
           </div>
 
-          {/* Right Column: Pet Details */}
+          {/* Right Column: Detailed Pet Attributes */}
           <div className="p-6 md:p-8 flex flex-col justify-between">
-            <div className="space-y-6">
+            <div className="space-y-5">
               
-              {/* Header Title */}
+              {/* Pet Title & Header */}
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full">
                     {pet.petType}
                   </span>
-                  <span className="text-xs text-stone-500">
-                    Reported on {pet.date}
+                  <span className="text-xs font-semibold text-stone-500">
+                    {pet.breed}
                   </span>
                 </div>
-                <h2 className="text-2xl md:text-3xl font-extrabold text-stone-900">
+                <h2 className="text-2xl md:text-3xl font-black text-stone-900 tracking-tight">
                   {pet.petName || (isLost ? 'Missing Pet' : 'Found Pet')}
                 </h2>
-                <p className="text-sm text-stone-600 font-medium mt-1">
-                  {pet.breed} • {pet.colour}
+                <p className="text-xs text-stone-500 mt-1">
+                  Reported on {pet.reportedDate || pet.date} in {pet.township}, {pet.region}
                 </p>
               </div>
 
-              {/* Key Attributes Grid */}
-              <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
-                <div>
-                  <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 block">Gender</span>
-                  <span className="text-xs font-bold text-stone-800">{pet.gender || 'Unknown'}</span>
+              {/* Status & Attributes Badges */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200">
+                  <span className="text-stone-400 block text-[10px] uppercase font-bold">Gender & Age</span>
+                  <span className="font-bold text-stone-800">{pet.gender || 'Unknown'} • {pet.age || 'Unknown'}</span>
                 </div>
-                <div>
-                  <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 block">Age</span>
-                  <span className="text-xs font-bold text-stone-800">{pet.age || 'Unknown'}</span>
+                <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200">
+                  <span className="text-stone-400 block text-[10px] uppercase font-bold">Primary Colour</span>
+                  <span className="font-bold text-stone-800">{pet.colour || pet.color || 'Unknown'}</span>
                 </div>
-                <div>
-                  <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 block">Collar Status</span>
-                  <span className="text-xs font-bold text-stone-800">{pet.collar || 'None'}</span>
+                <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200">
+                  <span className="text-stone-400 block text-[10px] uppercase font-bold">Collar Tag</span>
+                  <span className="font-bold text-stone-800">{pet.collar || 'None'}</span>
                 </div>
-                <div>
-                  <span className="text-[11px] uppercase tracking-wider font-semibold text-stone-500 block">Microchipped</span>
-                  <span className="text-xs font-bold text-stone-800">{pet.microchipped ? 'Yes (Registered)' : 'No / Unknown'}</span>
+                <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200">
+                  <span className="text-stone-400 block text-[10px] uppercase font-bold">Microchip</span>
+                  <span className="font-bold text-stone-800">{pet.microchip || (pet.microchipped ? 'Yes' : 'No')}</span>
                 </div>
               </div>
 
-              {/* Date & Location */}
-              <div className="space-y-2 text-xs">
+              {/* Location & Time Info */}
+              <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2 text-xs">
                 <div className="flex items-center gap-2 text-stone-700">
                   <Calendar className="w-4 h-4 text-amber-600 flex-shrink-0" />
                   <span className="font-semibold">{isLost ? 'Last Seen Date:' : 'Found Date:'}</span>
@@ -205,7 +215,7 @@ const PetDetailModal = () => {
                 <div className="flex items-start gap-2 text-stone-700">
                   <MapPin className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-semibold block">{pet.township}, {pet.city}, {pet.region}</span>
+                    <span className="font-semibold block">{pet.township}, {pet.city || pet.township}, {pet.region}</span>
                     <span className="text-stone-500">{pet.exactLocation}</span>
                   </div>
                 </div>
@@ -217,7 +227,7 @@ const PetDetailModal = () => {
                   Detailed Description
                 </h4>
                 <p className="text-xs text-stone-600 leading-relaxed bg-stone-50 p-3.5 rounded-xl border border-stone-200">
-                  {pet.description}
+                  {pet.description || 'No additional notes provided.'}
                 </p>
               </div>
 
@@ -371,24 +381,24 @@ const PetDetailModal = () => {
           )}
         </div>
 
-        {/* Possible Matches Section within Modal */}
-        {matches.length > 0 && (
-          <div className="p-6 md:p-8 bg-amber-50/50 border-t border-amber-100 rounded-b-3xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-500" />
-                <h3 className="font-extrabold text-stone-900 text-sm md:text-base">
-                  Possible Matching Pets ({matches.length})
-                </h3>
-              </div>
-              <button
-                onClick={() => { handleClose(); navigate('/user/matches'); }}
-                className="text-xs font-bold text-amber-700 hover:underline"
-              >
-                View Comparison Tool →
-              </button>
+        {/* Possible Matches Section within Modal (Always displays appropriate feedback!) */}
+        <div className="p-6 md:p-8 bg-amber-50/50 border-t border-amber-100 rounded-b-3xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              <h3 className="font-extrabold text-stone-900 text-sm md:text-base">
+                Possible Matching Pets {matches.length > 0 ? `(${matches.length})` : ''}
+              </h3>
             </div>
+            <button
+              onClick={() => { handleClose(); navigate('/user/matches'); }}
+              className="text-xs font-bold text-amber-700 hover:underline cursor-pointer"
+            >
+              View Full Comparison Engine →
+            </button>
+          </div>
 
+          {matches.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {matches.map(match => (
                 <div
@@ -407,13 +417,26 @@ const PetDetailModal = () => {
                       <span className="text-[11px] font-semibold text-stone-500 truncate">{match.breed}</span>
                     </div>
                     <h4 className="font-bold text-xs text-stone-900 truncate">{match.petName}</h4>
-                    <p className="text-[11px] text-stone-500 truncate">{match.township}, {match.city}</p>
+                    <p className="text-[11px] text-stone-500 truncate">{match.township}, {match.city || match.township}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="p-5 text-center bg-white/80 rounded-2xl border border-amber-200/80 text-xs text-stone-600 space-y-1">
+              <p className="font-semibold text-stone-800">
+                {isLost
+                  ? 'No matching found pets detected yet in this vicinity.'
+                  : 'No active lost pet reports currently match this found pet.'}
+              </p>
+              <p className="text-stone-500 text-[11px]">
+                {isLost
+                  ? 'Our AI engine compares new incoming found reports 24/7 and will alert you in notifications.'
+                  : 'When the owner posts their lost listing, our system will connect their report here.'}
+              </p>
+            </div>
+          )}
+        </div>
 
       </div>
     </div>

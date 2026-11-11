@@ -63,7 +63,6 @@ const UserNavbar = () => {
     { name: 'Home', path: '/', icon: Home },
     { name: 'Pet Reports', path: '/user/pet-reports', icon: Search },
     { name: 'Possible Matches', path: '/user/matches', icon: GitCompare, badge: 2 },
-    { name: 'Community Assistance', path: '/user/community', icon: Users2 },
     { name: 'Messages', path: '/user/messages', icon: MessageSquare, badge: unreadMessages },
   ];
 
@@ -268,19 +267,6 @@ const UserNavbar = () => {
                     >
                       <User className="w-4 h-4 text-stone-400 group-hover:text-amber-600" />
                       <span>Profile Settings</span>
-                    </Link>
-
-                    {/* 4. Admin Control Panel */}
-                    <Link
-                      to="/admin/dashboard"
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        switchRole('admin');
-                      }}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-amber-800 hover:bg-amber-100/70 font-bold transition"
-                    >
-                      <Shield className="w-4 h-4 text-amber-600" />
-                      <span>Admin Control Panel</span>
                     </Link>
                   </div>
 

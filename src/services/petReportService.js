@@ -30,7 +30,12 @@ export const petReportService = {
   },
 
   async updateMyReport(id, data) {
-    const response = await api.put(`/my-reports/${id}`, data);
+    const isForm = data instanceof FormData;
+    const response = isForm
+      ? await api.post(`/my-reports/${id}?_method=PUT`, data, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      : await api.put(`/my-reports/${id}`, data);
     return response.data;
   },
 

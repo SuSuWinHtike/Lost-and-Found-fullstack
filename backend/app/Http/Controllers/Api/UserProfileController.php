@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\Notification;
 use App\Models\PetReport;
 use App\Models\User;
@@ -49,6 +51,36 @@ class UserProfileController extends Controller
             ->limit(5)
             ->get();
 
+        $recentConversations = Conversation::where('user_one_id', $userId)
+            ->orWhere('user_two_id', $userId)
+            ->with([
+                'userOne',
+                'userTwo',
+                'petReport.images',
+                'messages' => function ($q) {
+                    $q->latest()->limit(1);
+                },
+            ])
+            ->orderByDesc('last_message_at')
+            ->limit(4)
+            ->get()
+            ->map(function ($c) use ($userId) {
+                $other = $c->user_one_id === $userId ? $c->userTwo : $c->userOne;
+                $unread = Message::where('conversation_id', $c->id)
+                    ->where('recipient_id', $userId)
+                    ->where('is_read', false)
+                    ->count();
+
+                return [
+                    'id' => $c->id,
+                    'other_user' => $other,
+                    'pet_report' => $c->petReport,
+                    'last_message' => $c->messages->first(),
+                    'last_message_at' => $c->last_message_at,
+                    'unread_count' => $unread,
+                ];
+            });
+
         return response()->json([
             'status' => 'success',
             'data' => [
@@ -58,6 +90,7 @@ class UserProfileController extends Controller
                 'reunited_pets' => $reunited,
                 'recent_reports' => $recentReports,
                 'recent_notifications' => $recentNotifications,
+                'recent_conversations' => $recentConversations,
             ],
         ]);
     }

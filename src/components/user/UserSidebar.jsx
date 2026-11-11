@@ -31,7 +31,6 @@ const UserSidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => 
     { name: 'Possible Matches', path: '/user/matches', icon: GitCompare, badgeCount: 2 },
     { name: 'Messages', path: '/user/messages', icon: MessageSquare, badgeCount: unreadMessages },
     { name: 'Notifications', path: '/user/notifications', icon: Bell, badgeCount: unreadNotifs },
-    { name: 'Community Assistance', path: '/user/community', icon: Users2 },
     { name: 'My Reports', path: '/user/my-reports', icon: FileText },
     { name: 'Profile', path: '/user/profile', icon: User },
   ];

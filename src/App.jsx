@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Layouts
 import PublicLayout from './layouts/PublicLayout';
@@ -19,7 +20,6 @@ import CreateReportPage from './pages/user/CreateReportPage';
 import PossibleMatchesPage from './pages/user/PossibleMatchesPage';
 import MessagesPage from './pages/user/MessagesPage';
 import NotificationsPage from './pages/user/NotificationsPage';
-import CommunityAssistancePage from './pages/user/CommunityAssistancePage';
 import MyReportsPage from './pages/user/MyReportsPage';
 import ProfilePage from './pages/user/ProfilePage';
 
@@ -37,8 +37,9 @@ import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 
 function App() {
   return (
-    <AppProvider>
-      <BrowserRouter>
+    <ErrorBoundary>
+      <AppProvider>
+        <BrowserRouter>
         <Routes>
           {/* Public Portal Routes */}
           <Route element={<PublicLayout />}>
@@ -56,7 +57,7 @@ function App() {
             <Route path="matches" element={<PossibleMatchesPage />} />
             <Route path="messages" element={<MessagesPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
-            <Route path="community" element={<CommunityAssistancePage />} />
+            <Route path="community" element={<Navigate to="/user/pet-reports" replace />} />
             <Route path="my-reports" element={<MyReportsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
@@ -81,6 +82,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </AppProvider>
+    </ErrorBoundary>
   );
 }
 

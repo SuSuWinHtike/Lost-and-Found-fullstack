@@ -30,7 +30,7 @@ export const initialNotifications = [
     timestamp: '1 day ago',
     read: true,
     petId: 'p6',
-    link: '/user/community'
+    link: '/user/pet-reports'
   },
   {
     id: 'n4',

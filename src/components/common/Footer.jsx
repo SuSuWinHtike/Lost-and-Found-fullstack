@@ -39,7 +39,6 @@ const Footer = () => {
               <li><Link to="/user/pet-reports" className="hover:text-amber-400 transition">All Pet Reports</Link></li>
               <li><Link to="/user/create-report" className="hover:text-amber-400 transition">Report Lost Pet</Link></li>
               <li><Link to="/user/create-report" className="hover:text-amber-400 transition">Report Found Pet</Link></li>
-              <li><Link to="/user/community" className="hover:text-amber-400 transition">Community Assistance</Link></li>
             </ul>
           </div>
 

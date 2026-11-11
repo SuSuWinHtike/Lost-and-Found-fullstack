@@ -21,14 +21,15 @@ const AppContext = createContext();
 // Helper to format backend pet report into frontend card structure
 export const formatPetForFrontend = (report) => {
   if (!report) return null;
-  const images = (report.images && report.images.length > 0)
+  const images = (Array.isArray(report.images) && report.images.length > 0)
     ? report.images.map(img => {
-        const path = img.image_path || img;
+        if (!img) return 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80';
+        const path = typeof img === 'string' ? img : (img.image_path || '');
         if (typeof path === 'string' && path.startsWith('/storage')) {
           return 'http://127.0.0.1:8000' + path;
         }
-        return path;
-      })
+        return path || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80';
+      }).filter(Boolean)
     : [
         (report.category?.name?.toLowerCase() === 'cat' || report.petType === 'Cat')
           ? 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=800&q=80'
@@ -426,12 +427,15 @@ export const AppProvider = ({ children }) => {
 
   const updatePet = async (id, updatedFields) => {
     try {
-      const rawId = typeof id === 'number' ? id : parseInt(id.replace(/\D/g, ''), 10);
+      const rawId = typeof id === 'number' ? id : parseInt(String(id).replace(/\D/g, ''), 10);
       if (rawId && authService.isAuthenticated()) {
-        await petReportService.updateMyReport(rawId, updatedFields);
+        const res = await petReportService.updateMyReport(rawId, updatedFields);
+        await refreshPets();
+        addToast(res.message || 'Report updated successfully!', 'success');
+        return res;
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.error('Update report error:', err);
     }
     setPets(prev => prev.map(pet => (pet.id === id || pet.rawId === id) ? { ...pet, ...updatedFields } : pet));
     addToast('Report updated successfully!', 'success');

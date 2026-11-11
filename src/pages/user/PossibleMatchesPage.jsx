@@ -337,7 +337,7 @@ const PossibleMatchesPage = () => {
               <ShieldCheck className="w-4 h-4 text-amber-600" /> What to do next:
             </p>
             <p className="text-stone-600">
-              • Check the Community Assistance board for recent street sightings.
+              • Check the Pet Reports directory for newly submitted found animals.
             </p>
             <p className="text-stone-600">
               • Share your lost report link with neighbors on Viber and Facebook.
@@ -346,10 +346,10 @@ const PossibleMatchesPage = () => {
 
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              to="/user/community"
+              to="/user/pet-reports"
               className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition shadow-sm flex items-center gap-2"
             >
-              <Search className="w-4 h-4" /> Check Community Sightings
+              <Search className="w-4 h-4" /> Browse Pet Reports
             </Link>
             <Link
               to="/user/my-reports"
