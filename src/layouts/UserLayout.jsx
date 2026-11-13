@@ -1,6 +1,8 @@
 import React from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import authService from '../services/authService';
+import { useApp } from '../context/AppContext';
+import Navbar from '../components/common/Navbar';
 import UserNavbar from '../components/user/UserNavbar';
 import Footer from '../components/common/Footer';
 import PetDetailModal from '../components/user/PetDetailModal';
@@ -9,8 +11,9 @@ import Toast from '../components/common/Toast';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 
 const UserLayout = () => {
+  const { currentUser } = useApp();
   const location = useLocation();
-  const protectedPaths = ['/user/create-report', '/user/messages', '/user/notifications', '/user/my-reports', '/user/profile'];
+  const protectedPaths = ['/user/dashboard', '/user/matches', '/user/create-report', '/user/messages', '/user/notifications', '/user/my-reports', '/user/profile'];
 
   const requiresAuth = protectedPaths.some(p => location.pathname.startsWith(p));
   if (requiresAuth && !authService.isAuthenticated()) {
@@ -21,7 +24,7 @@ const UserLayout = () => {
     <div className="min-h-screen bg-[#FCF9F2] text-stone-900 flex flex-col font-sans">
       {/* Top Navigation Bar */}
       <ErrorBoundary fallback={<div className="h-20 bg-white border-b border-amber-100 flex items-center px-8 font-bold">PetLove Community</div>}>
-        <UserNavbar />
+        {currentUser ? <UserNavbar /> : <Navbar />}
       </ErrorBoundary>
 
       {/* Main Content Area */}

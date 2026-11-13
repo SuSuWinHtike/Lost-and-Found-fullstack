@@ -20,11 +20,7 @@ export const dashboardService = {
   },
 
   async updateAvatar(formData) {
-    const response = await api.post('/user/avatar', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.post('/user/avatar', formData);
     if (response.data.user) {
       localStorage.setItem('petlove_user', JSON.stringify(response.data.user));
     }

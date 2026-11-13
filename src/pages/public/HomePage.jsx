@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import PetCard from '../../components/user/PetCard';
 import {
@@ -21,7 +21,14 @@ import {
 
 const HomePage = () => {
   const { pets, setSelectedPetForModal, petTypes, breeds, locations } = useApp();
+  const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.hash === '#how-it-works') {
+      document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }
+  }, [location.hash]);
 
   // Search Bar Filter State
   const [searchCategory, setSearchCategory] = useState('');
@@ -301,7 +308,7 @@ const HomePage = () => {
       </section>
 
       {/* How It Works Section */}
-      <section id="how-it-works" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+      <section id="how-it-works" className="max-w-7xl mx-auto scroll-mt-24 px-4 sm:px-6 lg:px-8 pt-6">
         <div className="bg-white rounded-[36px] p-8 sm:p-12 lg:p-16 border border-stone-200/80 pet-card-shadow">
           <div className="text-center max-w-2xl mx-auto mb-12 space-y-2">
             <span className="text-xs font-black uppercase tracking-widest text-amber-600 bg-amber-50 px-3 py-1 rounded-full border border-amber-200/70">

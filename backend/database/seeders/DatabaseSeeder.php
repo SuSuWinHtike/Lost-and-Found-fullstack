@@ -7,7 +7,6 @@ use App\Models\CityTownship;
 use App\Models\Color;
 use App\Models\Conversation;
 use App\Models\Message;
-use App\Models\Notification;
 use App\Models\PetCategory;
 use App\Models\PetImage;
 use App\Models\PetMatch;
@@ -247,15 +246,5 @@ class DatabaseSeeder extends Seeder
             'status' => 'suggested',
         ]);
 
-        // 9. Initial Notification
-        Notification::create([
-            'user_id' => $user1->id,
-            'type' => 'match',
-            'title' => 'Strong Match Detected (95%)',
-            'message' => 'A found Golden Retriever in Mayangone matches your lost pet Milo!',
-            'action_url' => '/user/matches',
-            'data' => ['match_id' => 1, 'pet_id' => $p1->id],
-            'is_read' => false,
-        ]);
     }
 }

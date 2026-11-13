@@ -26,7 +26,9 @@ const UserNavbar = () => {
   const {
     currentUser,
     notifications = [],
+    unreadNotifCount = 0,
     conversations = [],
+    refreshNotifications,
     markNotificationRead,
     markAllNotificationsRead,
     logout,
@@ -41,7 +43,7 @@ const UserNavbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const unreadNotifs = Array.isArray(notifications) ? notifications.filter(n => !n.read).length : 0;
+  const unreadNotifs = unreadNotifCount;
   const unreadMessages = Array.isArray(conversations) ? conversations.reduce((acc, c) => acc + (c?.unreadCount || 0), 0) : 0;
 
   // Close dropdowns on outside click
@@ -139,7 +141,12 @@ const UserNavbar = () => {
             {/* Notifications Popover */}
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => { setNotificationsOpen(!notificationsOpen); setProfileDropdownOpen(false); }}
+                onClick={() => {
+                  const shouldOpen = !notificationsOpen;
+                  setNotificationsOpen(shouldOpen);
+                  setProfileDropdownOpen(false);
+                  if (shouldOpen) refreshNotifications();
+                }}
                 className="relative p-2.5 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-600 transition bg-white"
                 title="Notifications"
               >
@@ -167,7 +174,7 @@ const UserNavbar = () => {
                   </div>
 
                   <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {notifications.slice(0, 4).map(notif => (
+                    {notifications.length > 0 ? notifications.slice(0, 4).map(notif => (
                       <div
                         key={notif.id}
                         onClick={() => {
@@ -187,7 +194,9 @@ const UserNavbar = () => {
                           {notif.message}
                         </p>
                       </div>
-                    ))}
+                    )) : (
+                      <p className="py-6 text-center text-xs text-stone-500">No notifications yet.</p>
+                    )}
                   </div>
 
                   <div className="pt-2 mt-2 border-t border-stone-100 text-center">

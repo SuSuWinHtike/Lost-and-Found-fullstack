@@ -339,7 +339,16 @@ const Navbar = () => {
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-amber-100 bg-white px-4 pt-3 pb-6 space-y-2 shadow-lg">
-          {activeLinks.map((item) => (
+          {activeLinks.map((item) => item.isAnchor ? (
+            <a
+              key={item.name}
+              href={item.path}
+              onClick={() => setMobileMenuOpen(false)}
+              className="block py-2 text-stone-700 font-bold text-xs hover:text-amber-600"
+            >
+              {item.name}
+            </a>
+          ) : (
             <Link
               key={item.name}
               to={item.path}

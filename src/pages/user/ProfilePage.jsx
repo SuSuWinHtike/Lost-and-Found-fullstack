@@ -29,7 +29,6 @@ const ProfilePage = () => {
   const [avatar, setAvatar] = useState(
     currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'
   );
-  const [avatarFile, setAvatarFile] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
@@ -75,39 +74,60 @@ const ProfilePage = () => {
 
   // Handle local avatar file selection & immediate upload
   const handleAvatarChange = async (e) => {
+    const input = e.target;
     const file = e.target.files?.[0];
+    input.value = '';
     if (!file) return;
 
-    setAvatarFile(file);
-    const localUrl = URL.createObjectURL(file);
-    setAvatar(localUrl);
+    if (!authService.isAuthenticated()) {
+      if (addToast) addToast('Please sign in to update your profile picture.', 'error');
+      return;
+    }
 
-    // Auto-upload the avatar immediately to MySQL backend
-    if (authService.isAuthenticated()) {
-      setIsUploadingAvatar(true);
-      try {
-        const form = new FormData();
-        form.append('avatar', file);
-        const res = await dashboardService.updateAvatar(form);
-        if (res && res.user) {
-          const formattedUser = {
-            ...res.user,
-            avatar: res.user.avatar?.startsWith('/storage')
-              ? 'http://127.0.0.1:8000' + res.user.avatar
-              : res.user.avatar
-          };
-          setCurrentUser(formattedUser);
-          localStorage.setItem('petlove_user', JSON.stringify(formattedUser));
-          setAvatar(formattedUser.avatar);
-          if (addToast) addToast('Profile picture uploaded & updated!', 'success');
-        }
-      } catch (err) {
-        console.error('Failed to upload avatar:', err);
-        const msg = err.response?.data?.message || 'Failed to upload profile picture.';
-        if (addToast) addToast(msg, 'error');
-      } finally {
-        setIsUploadingAvatar(false);
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      if (addToast) addToast('Choose a JPG, PNG, or WebP image.', 'error');
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      if (addToast) addToast('Profile pictures must be 3 MB or smaller.', 'error');
+      return;
+    }
+
+    const previousAvatar = avatar;
+    const previewUrl = URL.createObjectURL(file);
+    setAvatar(previewUrl);
+    setIsUploadingAvatar(true);
+
+    try {
+      const form = new FormData();
+      form.append('avatar', file);
+      const res = await dashboardService.updateAvatar(form);
+      if (!res.user?.avatar) {
+        throw new Error('The server did not return the updated profile picture.');
       }
+
+      const formattedUser = {
+        ...res.user,
+        avatar: res.user.avatar.startsWith('/storage')
+          ? 'http://127.0.0.1:8000' + res.user.avatar
+          : res.user.avatar
+      };
+      setCurrentUser(formattedUser);
+      localStorage.setItem('petlove_user', JSON.stringify(formattedUser));
+      setAvatar(formattedUser.avatar);
+      if (addToast) addToast('Profile picture uploaded & updated!', 'success');
+    } catch (err) {
+      console.error('Failed to upload avatar:', err);
+      setAvatar(previousAvatar);
+      const msg = err.response?.data?.errors?.avatar?.[0]
+        || err.response?.data?.message
+        || err.message
+        || 'Failed to upload profile picture.';
+      if (addToast) addToast(msg, 'error');
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -223,7 +243,7 @@ const ProfilePage = () => {
               )}
               <input
                 type="file"
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,.webp"
                 onChange={handleAvatarChange}
                 disabled={isUploadingAvatar}
                 className="hidden"
@@ -240,7 +260,7 @@ const ProfilePage = () => {
             </div>
             <p className="text-xs text-stone-500">{email || 'Registered Community Member'}</p>
             <p className="text-[11px] text-stone-400 pt-0.5">
-              Click the camera icon on your avatar to upload a new profile picture.
+              Click the camera icon to upload a JPG, PNG, or WebP image (3 MB max).
             </p>
           </div>
         </div>

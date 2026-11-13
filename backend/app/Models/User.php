@@ -40,7 +40,7 @@ class User extends Authenticatable
     public function getAvatarAttribute($value)
     {
         if ($value && str_starts_with($value, '/storage')) {
-            return 'http://127.0.0.1:8000' . $value;
+            return url($value);
         }
         return $value;
     }

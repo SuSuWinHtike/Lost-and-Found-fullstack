@@ -9,7 +9,6 @@ import notificationService from '../services/notificationService';
 import dashboardService from '../services/dashboardService';
 
 import { initialPets } from '../data/mockPets';
-import { initialNotifications } from '../data/mockNotifications';
 import { initialConversations } from '../data/mockMessages';
 import { initialSightings, initialAnnouncements, initialComplaints } from '../data/mockSightings';
 import { initialLocations } from '../data/mockLocations';
@@ -102,7 +101,7 @@ export const AppProvider = ({ children }) => {
   // Main collections state
   const [pets, setPets] = useState(initialPets);
   const [users, setUsers] = useState(initialUsers);
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const [notifications, setNotifications] = useState([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [conversations, setConversations] = useState(initialConversations);
   const [sightings, setSightings] = useState(initialSightings);
@@ -191,24 +190,27 @@ export const AppProvider = ({ children }) => {
 
   // 3. Fetch user notifications
   const refreshNotifications = useCallback(async () => {
-    if (!authService.isAuthenticated()) return;
+    if (!authService.isAuthenticated()) {
+      setNotifications([]);
+      setUnreadNotifCount(0);
+      return;
+    }
     try {
       const res = await notificationService.getNotifications();
-      if (res.data) {
-        setNotifications(res.data.map(n => ({
-          id: n.id,
-          userId: n.user_id,
-          type: n.type,
-          title: n.title,
-          message: n.message,
-          timestamp: new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          read: !!n.is_read,
-          link: n.action_url || '/user/notifications',
-        })));
-        setUnreadNotifCount(res.unread_count || 0);
-      }
-    } catch {
-      // Ignore
+      const records = Array.isArray(res.data) ? res.data : [];
+      setNotifications(records.map(n => ({
+        id: n.id,
+        userId: n.user_id,
+        type: n.type,
+        title: n.title,
+        message: n.message,
+        timestamp: new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        read: !!n.is_read,
+        link: n.action_url || '/user/notifications',
+      })));
+      setUnreadNotifCount(Number(res.unread_count) || 0);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
     }
   }, []);
 
@@ -304,8 +306,13 @@ export const AppProvider = ({ children }) => {
           refreshNotifications();
           refreshUsers();
         })
-        .catch(() => {
-          // Token expired or invalid
+        .catch((err) => {
+          if (err.response?.status === 401) {
+            setCurrentUser(null);
+            setCurrentRole('user');
+            setNotifications([]);
+            setUnreadNotifCount(0);
+          }
         });
     }
   }, [refreshPets, refreshMetadata, refreshSightings, refreshNotifications, refreshUsers]);
@@ -317,6 +324,8 @@ export const AppProvider = ({ children }) => {
       const res = await authService.login({ email, password });
       setCurrentUser(res.user);
       setCurrentRole(res.user.role);
+      setNotifications([]);
+      setUnreadNotifCount(0);
       addToast(res.message || `Welcome back, ${res.user.name}!`, 'success');
       refreshPets();
       refreshNotifications();
@@ -337,6 +346,8 @@ export const AppProvider = ({ children }) => {
       const res = await authService.register(userData);
       setCurrentUser(res.user);
       setCurrentRole(res.user.role);
+      setNotifications([]);
+      setUnreadNotifCount(0);
       addToast(res.message || `Account created successfully! Welcome ${res.user.name}.`, 'success');
       refreshPets();
       return res;
@@ -358,6 +369,8 @@ export const AppProvider = ({ children }) => {
     } finally {
       setCurrentUser(null);
       setCurrentRole('user');
+      setNotifications([]);
+      setUnreadNotifCount(0);
       addToast('Signed out successfully.', 'info');
     }
   };
@@ -459,6 +472,7 @@ export const AppProvider = ({ children }) => {
       const rawId = typeof id === 'number' ? id : parseInt(id.replace(/\D/g, ''), 10);
       if (rawId && authService.isAuthenticated()) {
         await petReportService.markAsReunited(rawId);
+        await refreshNotifications();
       }
     } catch {
       // Fallback
@@ -545,27 +559,29 @@ export const AppProvider = ({ children }) => {
 
   // Notifications
   const markNotificationRead = async (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    if (authService.isAuthenticated()) {
-      try {
-        await notificationService.markAsRead(id);
-      } catch {
-        // Ignore
-      }
+    if (!authService.isAuthenticated()) return;
+    try {
+      await notificationService.markAsRead(id);
+      const wasUnread = notifications.some(n => n.id === id && !n.read);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      if (wasUnread) setUnreadNotifCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+      addToast('Could not update this notification. Please try again.', 'error');
     }
   };
 
   const markAllNotificationsRead = async () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    setUnreadNotifCount(0);
-    if (authService.isAuthenticated()) {
-      try {
-        await notificationService.markAllAsRead();
-      } catch {
-        // Ignore
-      }
+    if (!authService.isAuthenticated()) return;
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadNotifCount(0);
+      addToast('All notifications marked as read.', 'info');
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+      addToast('Could not update notifications. Please try again.', 'error');
     }
-    addToast('All notifications marked as read.', 'info');
   };
 
   return (
@@ -589,6 +605,7 @@ export const AppProvider = ({ children }) => {
         refreshUsers,
         toggleUserStatus,
         notifications,
+        refreshNotifications,
         unreadNotifCount,
         markNotificationRead,
         markAllNotificationsRead,
