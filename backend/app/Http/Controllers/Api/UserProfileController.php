@@ -161,8 +161,12 @@ class UserProfileController extends Controller
         ]);
     }
 
-    public function users(): JsonResponse
+    public function users(Request $request): JsonResponse
     {
+        if (! $request->user()->isAdmin()) {
+            return $this->adminAccessDenied();
+        }
+
         $users = User::latest()->get();
 
         return response()->json([
@@ -171,8 +175,35 @@ class UserProfileController extends Controller
         ]);
     }
 
-    public function toggleUserStatus(int $id): JsonResponse
+    public function updateUser(Request $request, int $id): JsonResponse
     {
+        if (! $request->user()->isAdmin()) {
+            return $this->adminAccessDenied();
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'state_region' => ['nullable', 'string', 'max:255'],
+            'township' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $targetUser = User::findOrFail($id);
+        $targetUser->update($validated);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'User details updated successfully.',
+            'user' => $targetUser->fresh(),
+        ]);
+    }
+
+    public function toggleUserStatus(Request $request, int $id): JsonResponse
+    {
+        if (! $request->user()->isAdmin()) {
+            return $this->adminAccessDenied();
+        }
+
         $targetUser = User::findOrFail($id);
         $targetUser->status = ($targetUser->status === 'active') ? 'suspended' : 'active';
         $targetUser->save();
@@ -182,5 +213,13 @@ class UserProfileController extends Controller
             'message' => "User status changed to {$targetUser->status}.",
             'user' => $targetUser,
         ]);
+    }
+
+    private function adminAccessDenied(): JsonResponse
+    {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Administrator access is required.',
+        ], 403);
     }
 }

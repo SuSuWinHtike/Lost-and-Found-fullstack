@@ -62,9 +62,7 @@ const UserDashboardPage = () => {
   // Community recent reports
   const communityReports = pets.slice(0, 4);
 
-  const displayedReports = reportTab === 'my'
-    ? (myReports.length > 0 ? myReports : communityReports)
-    : communityReports;
+  const displayedReports = reportTab === 'my' ? myReports : communityReports;
 
   // Real conversations from DB
   const recentConversations = (dbStats?.recent_conversations && dbStats.recent_conversations.length > 0)

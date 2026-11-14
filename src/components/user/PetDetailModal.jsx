@@ -2,11 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import messageService from '../../services/messageService';
+import complaintService from '../../services/complaintService';
 import Badge from '../common/Badge';
 import {
   X, MapPin, Calendar, Clock, Phone, Mail, User, ShieldCheck,
   MessageCircle, Eye, Share2, Sparkles, AlertCircle, Heart, Tag,
-  Camera, CheckCircle2
+  Camera, CheckCircle2, Flag, Send, RefreshCw
 } from 'lucide-react';
 
 const PetDetailModal = () => {
@@ -20,6 +21,10 @@ const PetDetailModal = () => {
     addToast
   } = useApp();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [showComplaintForm, setShowComplaintForm] = useState(false);
+  const [complaintSubject, setComplaintSubject] = useState('');
+  const [complaintDescription, setComplaintDescription] = useState('');
+  const [isSubmittingComplaint, setIsSubmittingComplaint] = useState(false);
   const navigate = useNavigate();
 
   const pet = selectedPetForModal;
@@ -94,6 +99,49 @@ const PetDetailModal = () => {
   const handleShare = () => {
     navigator.clipboard?.writeText(window.location.origin + `/user/pet-reports?id=${pet.id}`);
     addToast('Report link copied to clipboard! Share it with the community.', 'info');
+  };
+
+  const handleOpenComplaintForm = () => {
+    if (!currentUser) {
+      addToast('Please sign in to report a pet post.', 'info');
+      handleClose();
+      navigate('/login');
+      return;
+    }
+
+    setShowComplaintForm(true);
+  };
+
+  const handleSubmitComplaint = async (event) => {
+    event.preventDefault();
+    if (isSubmittingComplaint) return;
+
+    const reportId = Number(pet.rawId || pet.id);
+    if (!Number.isInteger(reportId) || reportId < 1) {
+      addToast('This post cannot be reported right now. Please refresh and try again.', 'error');
+      return;
+    }
+
+    setIsSubmittingComplaint(true);
+    try {
+      const response = await complaintService.submitComplaint({
+        pet_report_id: reportId,
+        subject: complaintSubject,
+        description: complaintDescription.trim(),
+      });
+      setShowComplaintForm(false);
+      setComplaintSubject('');
+      setComplaintDescription('');
+      addToast(response.message || 'Your complaint has been sent to the moderation team.', 'success');
+    } catch (error) {
+      const message = error.response?.data?.errors?.description?.[0]
+        || error.response?.data?.errors?.subject?.[0]
+        || error.response?.data?.message
+        || 'Could not submit your complaint. Please try again.';
+      addToast(message, 'error');
+    } finally {
+      setIsSubmittingComplaint(false);
+    }
   };
 
   return (
@@ -267,7 +315,7 @@ const PetDetailModal = () => {
             </div>
 
             {/* Modal Bottom Action Buttons */}
-            <div className="pt-6 mt-6 border-t border-amber-100 grid grid-cols-2 gap-3">
+            <div className={`pt-6 mt-6 border-t border-amber-100 grid gap-3 ${isOwner ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-3'}`}>
               <button
                 onClick={handleOpenChat}
                 className="py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 transition cursor-pointer"
@@ -282,6 +330,16 @@ const PetDetailModal = () => {
                 <AlertCircle className="w-4 h-4 text-amber-600" />
                 Submit Sighting
               </button>
+              {!isOwner && (
+                <button
+                  type="button"
+                  onClick={handleOpenComplaintForm}
+                  className="py-3 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <Flag className="w-4 h-4" />
+                  Report this post
+                </button>
+              )}
             </div>
 
           </div>
@@ -371,6 +429,7 @@ const PetDetailModal = () => {
                       {s.submitterPhone}
                     </a>
                   </div>
+
                 </div>
               ))}
             </div>
@@ -439,6 +498,93 @@ const PetDetailModal = () => {
         </div>
 
       </div>
+
+      {showComplaintForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-sm">
+          <form
+            onSubmit={handleSubmitComplaint}
+            className="w-full max-w-lg rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-rose-100 space-y-5"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Safety &amp; Compliance</span>
+                <h3 className="text-lg font-extrabold text-stone-900 mt-1">Report this pet post</h3>
+                <p className="text-xs text-stone-500 mt-1">
+                  Tell our moderation team what seems wrong. Your report is private.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowComplaintForm(false)}
+                disabled={isSubmittingComplaint}
+                aria-label="Close complaint form"
+                className="p-1 text-stone-400 hover:text-stone-700 disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <label htmlFor="complaint-subject" className="block text-xs font-bold text-stone-700 mb-1.5">
+                Reason for reporting
+              </label>
+              <select
+                id="complaint-subject"
+                value={complaintSubject}
+                onChange={(event) => setComplaintSubject(event.target.value)}
+                required
+                className="w-full px-3.5 py-3 rounded-xl border border-stone-200 text-sm bg-white focus:ring-2 focus:ring-rose-400 focus:outline-none"
+              >
+                <option value="">Select a reason</option>
+                <option value="Fraud or scam">Fraud or scam</option>
+                <option value="Harassment or inappropriate contact">Harassment or inappropriate contact</option>
+                <option value="Spam or misleading information">Spam or misleading information</option>
+                <option value="Inaccurate pet information">Inaccurate pet information</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="complaint-description" className="block text-xs font-bold text-stone-700 mb-1.5">
+                Details
+              </label>
+              <textarea
+                id="complaint-description"
+                value={complaintDescription}
+                onChange={(event) => setComplaintDescription(event.target.value)}
+                required
+                minLength={10}
+                maxLength={5000}
+                rows={5}
+                placeholder="Describe the issue so our team can review it (at least 10 characters)."
+                className="w-full px-3.5 py-3 rounded-xl border border-stone-200 text-sm focus:ring-2 focus:ring-rose-400 focus:outline-none resize-y"
+              />
+              <p className="text-[11px] text-stone-400 text-right mt-1">
+                {complaintDescription.length}/5000
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowComplaintForm(false)}
+                disabled={isSubmittingComplaint}
+                className="px-4 py-2.5 rounded-xl border border-stone-200 text-stone-700 font-bold text-xs disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingComplaint}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs disabled:opacity-60"
+              >
+                {isSubmittingComplaint ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {isSubmittingComplaint ? 'Submitting…' : 'Submit Complaint'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

@@ -29,6 +29,21 @@ export const petReportService = {
     return response.data;
   },
 
+  async getAdminPetReports(type) {
+    const response = await api.get('/admin/pet-reports', { params: { type } });
+    return response.data;
+  },
+
+  async updateAdminPetReportStatus(id, status) {
+    const response = await api.patch(`/admin/pet-reports/${id}/status`, { status });
+    return response.data;
+  },
+
+  async deleteAdminPetReport(id) {
+    const response = await api.delete(`/admin/pet-reports/${id}`);
+    return response.data;
+  },
+
   async updateMyReport(id, data) {
     const isForm = data instanceof FormData;
     const response = isForm

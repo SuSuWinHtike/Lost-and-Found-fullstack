@@ -1,6 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\AdminDashboardController;
+use App\Http\Controllers\Api\AdminPetReportController;
+use App\Http\Controllers\Api\AdminTaxonomyController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ComplaintController;
 use App\Http\Controllers\Api\MatchController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\MetadataController;
@@ -48,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Pet Reports operations
     Route::post('/pet-reports', [PetReportController::class, 'store']);
     Route::post('/pet-reports/{id}/favorite', [PetReportController::class, 'toggleFavorite']);
+    Route::post('/complaints', [ComplaintController::class, 'store']);
 
     // My Submitted Reports
     Route::prefix('my-reports')->group(function () {
@@ -76,11 +81,30 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Dashboard & Profile
     Route::get('/dashboard/stats', [UserProfileController::class, 'dashboardStats']);
+    Route::get('/admin/dashboard-stats', [AdminDashboardController::class, 'index']);
     Route::put('/user/profile', [UserProfileController::class, 'updateProfile']);
     Route::post('/user/change-password', [UserProfileController::class, 'changePassword']);
     Route::post('/user/avatar', [UserProfileController::class, 'updateAvatar']);
 
     // User Management
     Route::get('/users', [UserProfileController::class, 'users']);
+    Route::put('/users/{id}', [UserProfileController::class, 'updateUser']);
     Route::post('/users/{id}/toggle-status', [UserProfileController::class, 'toggleUserStatus']);
+
+    // Admin Pet Report Moderation
+    Route::get('/admin/pet-reports', [AdminPetReportController::class, 'index']);
+    Route::patch('/admin/pet-reports/{id}/status', [AdminPetReportController::class, 'updateStatus']);
+    Route::delete('/admin/pet-reports/{id}', [AdminPetReportController::class, 'destroy']);
+
+    // Complaint Management
+    Route::get('/admin/complaints', [ComplaintController::class, 'index']);
+    Route::patch('/admin/complaints/{id}', [ComplaintController::class, 'update']);
+
+    // Taxonomy Management
+    Route::get('/admin/taxonomies', [AdminTaxonomyController::class, 'index']);
+    Route::post('/admin/pet-categories', [AdminTaxonomyController::class, 'storeCategory']);
+    Route::post('/admin/breeds', [AdminTaxonomyController::class, 'storeBreed']);
+    Route::delete('/admin/breeds/{id}', [AdminTaxonomyController::class, 'destroyBreed']);
+    Route::post('/admin/colors', [AdminTaxonomyController::class, 'storeColor']);
+    Route::delete('/admin/colors/{id}', [AdminTaxonomyController::class, 'destroyColor']);
 });

@@ -25,7 +25,7 @@ const AdminSidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) =>
 
   const pendingLost = pets.filter(p => p.reportType === 'lost' && p.status === 'Pending').length;
   const pendingFound = pets.filter(p => p.reportType === 'found' && p.status === 'Pending').length;
-  const pendingComplaints = complaints.filter(c => c.status === 'Investigating').length;
+  const pendingComplaints = complaints.filter(c => ['pending', 'in_review'].includes(c.status)).length;
 
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: ShieldAlert },

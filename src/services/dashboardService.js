@@ -6,6 +6,11 @@ export const dashboardService = {
     return response.data.data;
   },
 
+  async getAdminDashboardStats() {
+    const response = await api.get('/admin/dashboard-stats');
+    return response.data.data;
+  },
+
   async updateProfile(profileData) {
     const response = await api.put('/user/profile', profileData);
     if (response.data.user) {

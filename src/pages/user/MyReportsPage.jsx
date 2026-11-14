@@ -302,7 +302,7 @@ const MyReportsPage = () => {
           <span className="text-xs font-bold text-stone-500 uppercase tracking-wider mr-1">
             Status:
           </span>
-          {['all', 'reunited'].map((s) => (
+          {['all', 'pending', 'approved', 'rejected', 'reunited'].map((s) => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}

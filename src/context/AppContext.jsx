@@ -7,10 +7,12 @@ import sightingService from '../services/sightingService';
 import messageService from '../services/messageService';
 import notificationService from '../services/notificationService';
 import dashboardService from '../services/dashboardService';
+import complaintService from '../services/complaintService';
+import taxonomyService from '../services/taxonomyService';
 
 import { initialPets } from '../data/mockPets';
 import { initialConversations } from '../data/mockMessages';
-import { initialSightings, initialAnnouncements, initialComplaints } from '../data/mockSightings';
+import { initialSightings, initialAnnouncements } from '../data/mockSightings';
 import { initialLocations } from '../data/mockLocations';
 import { initialPetTypes, initialBreeds, initialColours } from '../data/mockCategories';
 import { initialUsers } from '../data/mockUsers';
@@ -43,6 +45,12 @@ export const formatPetForFrontend = (report) => {
   const dateVal = report.event_date ? (typeof report.event_date === 'string' ? report.event_date.split('T')[0] : report.event_date) : (report.date || '2026-11-11');
   const timeVal = report.event_time || report.time || '12:00';
   const genderVal = report.gender ? (report.gender.charAt(0).toUpperCase() + report.gender.slice(1).toLowerCase()) : 'Unknown';
+  const reportStatus = {
+    approved: 'Approved',
+    pending: 'Pending',
+    rejected: 'Rejected',
+    reunited: 'Reunited',
+  }[report.status] || 'Unknown';
 
   return {
     id: report.id,
@@ -75,7 +83,7 @@ export const formatPetForFrontend = (report) => {
     appearance: report.physical_condition || report.appearance || 'Healthy',
     condition: report.physical_condition || report.condition || 'Healthy',
     holdingLocation: report.safe_holding_location || report.holdingLocation || null,
-    status: report.status === 'approved' ? 'Approved' : (report.status === 'reunited' ? 'Reunited' : (report.status === 'pending' ? 'Pending' : 'Approved')),
+    status: reportStatus,
     images,
     userName: report.contact_name || report.user?.name || report.userName || 'Pet Caretaker',
     userPhone: report.contact_phone || report.user?.phone || report.userPhone || '09-450-123-789',
@@ -89,6 +97,37 @@ export const formatPetForFrontend = (report) => {
     is_favorited: !!report.is_favorited,
   };
 };
+
+const formatUserForManagement = (user) => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone || '',
+  role: user.role,
+  status: user.status === 'active'
+    ? 'Active'
+    : (user.status === 'deactivated' ? 'Deactivated' : 'Suspended'),
+  township: user.township || '',
+  stateRegion: user.state_region || '',
+  location: [user.township, user.state_region].filter(Boolean).join(', ') || 'Not provided',
+  joinedDate: user.created_at ? new Date(user.created_at).toLocaleDateString() : '',
+  avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+  bio: user.bio || 'No bio provided',
+});
+
+const formatComplaintForManagement = (complaint) => ({
+  id: complaint.id,
+  complainantName: complaint.user?.name || 'Community Member',
+  complainantEmail: complaint.user?.email || '',
+  reportedUserName: complaint.reported_user?.name || 'Unknown User',
+  reportedUserId: complaint.reported_user_id,
+  reportId: complaint.pet_report_id,
+  reason: complaint.subject,
+  description: complaint.description,
+  date: complaint.created_at ? new Date(complaint.created_at).toLocaleDateString() : '',
+  status: complaint.status,
+  resolutionNote: complaint.admin_notes || '',
+});
 
 export const AppProvider = ({ children }) => {
   // Current user and authentication
@@ -106,7 +145,7 @@ export const AppProvider = ({ children }) => {
   const [conversations, setConversations] = useState(initialConversations);
   const [sightings, setSightings] = useState(initialSightings);
   const [announcements, setAnnouncements] = useState(initialAnnouncements);
-  const [complaints, setComplaints] = useState(initialComplaints);
+  const [complaints, setComplaints] = useState([]);
 
   // Categories & locations
   const [petTypes, setPetTypes] = useState(initialPetTypes);
@@ -169,24 +208,126 @@ export const AppProvider = ({ children }) => {
         })));
       }
 
-      if (cats && cats.length > 0) {
-        setPetTypes(cats.map(c => ({ id: c.id, name: c.name, icon: c.slug })));
-        const allBreeds = [];
-        cats.forEach(c => {
-          c.breeds?.forEach(b => {
-            allBreeds.push({ id: b.id, petType: c.name, name: b.name });
-          });
-        });
-        if (allBreeds.length > 0) setBreeds(allBreeds);
-      }
-
-      if (cols && cols.length > 0) {
-        setColours(cols.map(c => ({ id: c.id, name: c.name, hex: c.hex_code || '#D97706' })));
-      }
-    } catch {
-      // Keep initial fallback values
+      const categories = Array.isArray(cats) ? cats : [];
+      setPetTypes(categories.map(c => ({ id: c.id, name: c.name, icon: c.slug })));
+      setBreeds(categories.flatMap(c =>
+        (c.breeds || []).map(b => ({ id: b.id, petType: c.name, name: b.name }))
+      ));
+      setColours((Array.isArray(cols) ? cols : []).map(c => ({
+        id: c.id,
+        name: c.name,
+        hex: c.hex_code || '#D97706',
+      })));
+    } catch (err) {
+      console.error('Failed to load category metadata:', err);
+      setPetTypes([]);
+      setBreeds([]);
+      setColours([]);
     }
   }, []);
+
+  const refreshTaxonomies = useCallback(async () => {
+    try {
+      const data = await taxonomyService.getAdminTaxonomies();
+      if (!Array.isArray(data?.categories) || !Array.isArray(data?.colors)) {
+        throw new Error('The server returned invalid category data.');
+      }
+
+      const nextPetTypes = data.categories.map(category => ({
+        id: category.id,
+        name: category.name,
+        icon: category.icon || category.slug,
+      }));
+      const nextBreeds = data.categories.flatMap(category =>
+        (category.breeds || []).map(breed => ({
+          id: breed.id,
+          petType: category.name,
+          name: breed.name,
+        }))
+      );
+      const nextColours = data.colors.map(color => ({
+        id: color.id,
+        name: color.name,
+        hex: color.hex_code || '#D97706',
+      }));
+
+      setPetTypes(nextPetTypes);
+      setBreeds(nextBreeds);
+      setColours(nextColours);
+
+      return { petTypes: nextPetTypes, breeds: nextBreeds, colours: nextColours };
+    } catch (err) {
+      console.error('Failed to load category data:', err);
+      throw err;
+    }
+  }, []);
+
+  const addPetType = async (name) => {
+    try {
+      await taxonomyService.createPetType({ name });
+      await refreshTaxonomies();
+      addToast('Pet type added successfully.', 'success');
+    } catch (err) {
+      console.error('Failed to add pet type:', err);
+      addToast(err.response?.data?.message || 'Could not add this pet type.', 'error');
+      throw err;
+    }
+  };
+
+  const addBreed = async (petType, name) => {
+    const category = petTypes.find(type => type.name === petType);
+    if (!category) {
+      const err = new Error('Select a valid pet type before adding a breed.');
+      addToast(err.message, 'error');
+      throw err;
+    }
+
+    try {
+      await taxonomyService.createBreed({ category_id: category.id, name });
+      await refreshTaxonomies();
+      addToast('Breed added successfully.', 'success');
+    } catch (err) {
+      console.error('Failed to add breed:', err);
+      addToast(err.response?.data?.message || 'Could not add this breed.', 'error');
+      throw err;
+    }
+  };
+
+  const deleteBreed = async (id) => {
+    try {
+      await taxonomyService.deleteBreed(id);
+      await refreshTaxonomies();
+      addToast('Breed removed. Existing reports are preserved.', 'success');
+    } catch (err) {
+      console.error('Failed to remove breed:', err);
+      addToast(err.response?.data?.message || 'Could not remove this breed.', 'error');
+      throw err;
+    }
+  };
+
+  const addColour = async (name, hex) => {
+    try {
+      await taxonomyService.createColor({ name, hex_code: hex });
+      await refreshTaxonomies();
+      addToast('Pet colour added successfully.', 'success');
+    } catch (err) {
+      console.error('Failed to add pet colour:', err);
+      addToast(err.response?.data?.message || 'Could not add this pet colour.', 'error');
+      throw err;
+    }
+  };
+
+  const deleteColour = async (id) => {
+    try {
+      await taxonomyService.deleteColor(id);
+      await refreshTaxonomies();
+      addToast('Pet colour removed. Existing reports are preserved.', 'success');
+    } catch (err) {
+      console.error('Failed to remove pet colour:', err);
+      addToast(err.response?.data?.message || 'Could not remove this pet colour.', 'error');
+      throw err;
+    }
+  };
 
   // 3. Fetch user notifications
   const refreshNotifications = useCallback(async () => {
@@ -256,40 +397,86 @@ export const AppProvider = ({ children }) => {
 
   // 5. Fetch real users list
   const refreshUsers = useCallback(async () => {
-    if (!authService.isAuthenticated()) return;
+    if (!authService.isAuthenticated()) {
+      setUsers([]);
+      return [];
+    }
+
     try {
       const res = await api.get('/users');
-      if (res.data?.data) {
-        setUsers(res.data.data.map(u => ({
-          id: u.id,
-          name: u.name,
-          email: u.email,
-          phone: u.phone,
-          role: u.role === 'admin' ? 'Administrator' : 'User',
-          status: u.status === 'active' ? 'Active' : 'Suspended',
-          location: u.township ? `${u.township}, ${u.state_region || ''}` : 'Yangon',
-          joinedDate: u.created_at ? u.created_at.split('T')[0] : '2026-11-11',
-          avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-        })));
+      if (!Array.isArray(res.data?.data)) {
+        throw new Error('The server returned an invalid user list.');
       }
-    } catch {
-      // Keep fallback
+
+      const formattedUsers = res.data.data.map(formatUserForManagement);
+      setUsers(formattedUsers);
+      return formattedUsers;
+    } catch (err) {
+      console.error('Failed to load users:', err);
+      throw err;
     }
   }, []);
 
+  const refreshComplaints = useCallback(async () => {
+    if (!authService.isAuthenticated()) {
+      setComplaints([]);
+      return [];
+    }
+
+    try {
+      const response = await complaintService.getAdminComplaints();
+      if (!Array.isArray(response.data)) {
+        throw new Error('The server returned an invalid complaint list.');
+      }
+
+      const records = response.data.map(formatComplaintForManagement);
+      setComplaints(records);
+      return records;
+    } catch (err) {
+      console.error('Failed to load complaints:', err);
+      throw err;
+    }
+  }, []);
+
+  const updateComplaint = async (id, changes) => {
+    try {
+      const response = await complaintService.updateAdminComplaint(id, changes);
+      const updatedComplaint = formatComplaintForManagement(response.data);
+      setComplaints(prev => prev.map(complaint => complaint.id === id ? updatedComplaint : complaint));
+      addToast(response.message || 'Complaint case updated.', 'success');
+      return updatedComplaint;
+    } catch (err) {
+      console.error('Failed to update complaint:', err);
+      addToast(err.response?.data?.message || 'Could not update this complaint. Please try again.', 'error');
+      throw err;
+    }
+  };
+
   const toggleUserStatus = async (id) => {
     try {
-      await api.post(`/users/${id}/toggle-status`);
-      refreshUsers();
-      addToast('User account status updated in MySQL.', 'success');
-    } catch {
-      setUsers(prev => prev.map(u => {
-        if (u.id === id) {
-          const nextStatus = u.status === 'Active' ? 'Suspended' : 'Active';
-          return { ...u, status: nextStatus };
-        }
-        return u;
-      }));
+      const response = await api.post(`/users/${id}/toggle-status`);
+      const updatedUser = formatUserForManagement(response.data.user);
+      setUsers(prev => prev.map(user => user.id === id ? updatedUser : user));
+      addToast(response.data.message || 'User account status updated.', 'success');
+      return updatedUser;
+    } catch (err) {
+      console.error('Failed to update user status:', err);
+      addToast(err.response?.data?.message || 'Could not update this user status. Please try again.', 'error');
+      throw err;
+    }
+  };
+
+  const updateUser = async (id, changes) => {
+    try {
+      const response = await api.put(`/users/${id}`, changes);
+      const updatedUser = formatUserForManagement(response.data.user);
+      setUsers(prev => prev.map(user => user.id === id ? updatedUser : user));
+      addToast(response.data.message || 'User details updated.', 'success');
+      return updatedUser;
+    } catch (err) {
+      console.error('Failed to update user:', err);
+      addToast(err.response?.data?.message || 'Could not update this user. Please try again.', 'error');
+      throw err;
     }
   };
 
@@ -304,7 +491,13 @@ export const AppProvider = ({ children }) => {
           setCurrentUser(user);
           setCurrentRole(user.role);
           refreshNotifications();
-          refreshUsers();
+          if (user.role === 'admin') {
+            refreshUsers().catch((err) => console.error('Failed to load admin users:', err));
+            refreshComplaints().catch((err) => console.error('Failed to load admin complaints:', err));
+          } else {
+            setUsers([]);
+            setComplaints([]);
+          }
         })
         .catch((err) => {
           if (err.response?.status === 401) {
@@ -312,10 +505,12 @@ export const AppProvider = ({ children }) => {
             setCurrentRole('user');
             setNotifications([]);
             setUnreadNotifCount(0);
+            setUsers([]);
+            setComplaints([]);
           }
         });
     }
-  }, [refreshPets, refreshMetadata, refreshSightings, refreshNotifications, refreshUsers]);
+  }, [refreshPets, refreshMetadata, refreshSightings, refreshNotifications, refreshUsers, refreshComplaints]);
 
   // Authentication: Real Login
   const login = async (email, password) => {
@@ -324,6 +519,13 @@ export const AppProvider = ({ children }) => {
       const res = await authService.login({ email, password });
       setCurrentUser(res.user);
       setCurrentRole(res.user.role);
+      if (res.user.role === 'admin') {
+        refreshUsers().catch((err) => console.error('Failed to load admin users:', err));
+        refreshComplaints().catch((err) => console.error('Failed to load admin complaints:', err));
+      } else {
+        setUsers([]);
+        setComplaints([]);
+      }
       setNotifications([]);
       setUnreadNotifCount(0);
       addToast(res.message || `Welcome back, ${res.user.name}!`, 'success');
@@ -369,6 +571,8 @@ export const AppProvider = ({ children }) => {
     } finally {
       setCurrentUser(null);
       setCurrentRole('user');
+      setUsers([]);
+      setComplaints([]);
       setNotifications([]);
       setUnreadNotifCount(0);
       addToast('Signed out successfully.', 'info');
@@ -604,6 +808,7 @@ export const AppProvider = ({ children }) => {
         users,
         refreshUsers,
         toggleUserStatus,
+        updateUser,
         notifications,
         refreshNotifications,
         unreadNotifCount,
@@ -617,6 +822,12 @@ export const AppProvider = ({ children }) => {
         petTypes,
         breeds,
         colours,
+        refreshTaxonomies,
+        addPetType,
+        addBreed,
+        deleteBreed,
+        addColour,
+        deleteColour,
         locations,
         toasts,
         addToast,
@@ -629,6 +840,8 @@ export const AppProvider = ({ children }) => {
         toggleFavorite,
         announcements,
         complaints,
+        refreshComplaints,
+        updateComplaint,
       }}
     >
       {children}
